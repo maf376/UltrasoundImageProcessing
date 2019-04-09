@@ -23,14 +23,10 @@ class Worker(QtCore.QObject):
 #                    os.mkdir(vidDir)
             nFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             cap.set(cv2.CAP_PROP_CONVERT_RGB,False)
-            ret = True
-            i = 0
-            while i < nFrames:
+            for i in range(nFrames):
                 ret,frame = cap.read()
-                if ret:
-                    print(type(frame))
-                    cv2.imwrite(filedir+file.replace(vidFormat,'-' + str(i).zfill(4)+imgFormat),frame)
-                    i += 1
+                cv2.imwrite(filedir+file.replace(vidFormat,'-' + str(i).zfill(4)+imgFormat),frame) if ret else None
+                    
 
 class myViewBox(QtWidgets.QWidget):
     def __init__(self,parent,wImage,hImage):
@@ -337,6 +333,7 @@ class Form(QtWidgets.QMainWindow):
             for z,file in enumerate(self.imgFiles):
                 if os.path.isfile(self.dirField.text()+file.replace(imgFormat,'-mask' + imgFormat)):
                     mask = cv2.imread(self.dirField.text()+file.replace(imgFormat,'-mask'+ imgFormat))
+                    hMask, wMask = np.shape(mask)[0],np.shape(mask)[1]
                     maskFound = True
                     break
                 else:
@@ -347,29 +344,35 @@ class Form(QtWidgets.QMainWindow):
                 blueAnswerz = ['Mask file not found.']*len(self.imgFiles)
             else:
                 for z,file in enumerate(self.imgFiles):
-                    colorMask = mask < 10
-                    redRegion,nRed = nd.label(colorMask[:,:,2])
-                    greenRegion,nGreen = nd.label(colorMask[:,:,1])
-                    blueRegion,nBlue = nd.label(colorMask[:,:,0])
                     img = cv2.imread(self.dirField.text()+file)[:,:,0]
-                    if nRed > 1:
-                        c = np.zeros(nRed,np.uint32)
-                        for i in range(nRed):
-                            c[i] = np.count_nonzero(redRegion==i+1)
-                        redMaskedImg = np.ma.array(img,mask=redRegion!=(np.argmin(c)+1))
-                        redAnswerz[z] = redMaskedImg.mean()
-                    if nGreen > 1:
-                        d = np.zeros(nGreen,np.uint32)
-                        for i in range(nGreen):
-                            d[i] = np.count_nonzero(greenRegion==i+1)
-                        greenMaskedImg = np.ma.array(img,mask=greenRegion!=(np.argmin(d)+1))
-                        greenAnswerz[z] = greenMaskedImg.mean()
-                    if nBlue  > 1:
-                        e = np.zeros(nBlue,np.uint32)
-                        for i in range(nBlue):
-                            e[i] = np.count_nonzero(blueRegion==i+1)
-                        blueMaskedImg = np.ma.array(img,mask=blueRegion!=(np.argmin(e)+1))
-                        blueAnswerz[z] = blueMaskedImg.mean()
+                    hImg,wImg = np.shape(img)
+                    if hImg == hMask and wImg == wMask:
+                        colorMask = mask < 10
+                        redRegion,nRed = nd.label(colorMask[:,:,2])
+                        greenRegion,nGreen = nd.label(colorMask[:,:,1])
+                        blueRegion,nBlue = nd.label(colorMask[:,:,0])
+                        if nRed > 1:
+                            c = np.zeros(nRed,np.uint32)
+                            for i in range(nRed):
+                                c[i] = np.count_nonzero(redRegion==i+1)
+                            redMaskedImg = np.ma.array(img,mask=redRegion!=(np.argmin(c)+1))
+                            redAnswerz[z] = redMaskedImg.mean()
+                        if nGreen > 1:
+                            d = np.zeros(nGreen,np.uint32)
+                            for i in range(nGreen):
+                                d[i] = np.count_nonzero(greenRegion==i+1)
+                            greenMaskedImg = np.ma.array(img,mask=greenRegion!=(np.argmin(d)+1))
+                            greenAnswerz[z] = greenMaskedImg.mean()
+                        if nBlue  > 1:
+                            e = np.zeros(nBlue,np.uint32)
+                            for i in range(nBlue):
+                                e[i] = np.count_nonzero(blueRegion==i+1)
+                            blueMaskedImg = np.ma.array(img,mask=blueRegion!=(np.argmin(e)+1))
+                            blueAnswerz[z] = blueMaskedImg.mean()
+                    else:
+                        redAnswerz[z] = ['Mask and image size don\'t match']
+                        greenAnswerz[z] = ['Mask and image size don\'t match']
+                        blueAnswerz[z] = ['Mask and image size don\'t match']
                 
             excelFileName = self.dirField.text() + 'Image Processing Output - 1.xlsx'
             a = 1
