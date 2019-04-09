@@ -9,36 +9,42 @@ from scipy import ndimage as nd
 import pandas as pd
 
 class Worker(QtCore.QObject):
-    saveFinishedSignal = pyqtSignal()
-    saveFinishedSignal2 = pyqtSignal()
-    progressBarUpdateSignal = pyqtSignal(float)
-    progressBarUpdateSignal2 = pyqtSignal(float)
-    setCurveDataSignal = pyqtSignal(int,np.ndarray,np.ndarray,np.ndarray,np.ndarray)
-    setCurveDataSignal2 = pyqtSignal(int,np.ndarray,np.ndarray,np.ndarray)
-    expFinishedSignal = pyqtSignal(list,list,np.ndarray,np.ndarray,np.ndarray,np.ndarray)
-    expFinishedSignal2 = pyqtSignal(list,list,np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray)
-    loadFinishedSignal = pyqtSignal(np.ndarray,np.ndarray,np.ndarray,np.ndarray,list,list,list)
-    loadFinishedSignal2 = pyqtSignal(np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray,list,list,list)
-    scopeTimeoutErrorSignal = pyqtSignal(float)
-    
     def __init__(self):
         QtCore.QObject.__init__(self)
+    
+    @pyqtSlot(str,list,str,str)
+    def digestVideos(self,filedir,vidFiles,vidFormat,imgFormat):
+        nFiles = len(vidFiles)
+        for fileNum,file in enumerate(vidFiles):
+            print('Processing file ' + str(fileNum+1) + ' of ' + str(nFiles) + ': ' + file)
+            cap = cv2.VideoCapture(filedir+file)
+#                vidDir = self.dirField.text()+file.replace(vidFormat,'/')
+#                if not os.path.isdir(vidDir):
+#                    os.mkdir(vidDir)
+            nFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            cap.set(cv2.CAP_PROP_CONVERT_RGB,False)
+            ret = True
+            i = 0
+            while i < nFrames:
+                ret,frame = cap.read()
+                if ret:
+                    print(type(frame))
+                    cv2.imwrite(filedir+file.replace(vidFormat,'-' + str(i).zfill(4)+imgFormat),frame)
+                    i += 1
 
 class myViewBox(QtWidgets.QWidget):
-    def __init__(self,parent,w,h):
+    def __init__(self,parent,wImage,hImage):
         super(myViewBox, self).__init__(parent)
-        self.overlay = QtGui.QImage(w,h,QtGui.QImage.Format_RGBA8888)
+        self.overlay = QtGui.QImage(wImage,hImage,QtGui.QImage.Format_RGBA8888)
         self.overlay.fill(QtGui.QColor("transparent"))
     
-    def reset(self, w, h):
-        self.overlay = QtGui.QImage(w,h,QtGui.QImage.Format_RGBA8888)
-        self.overlay.fill(QtGui.QColor("transparent"))
+    def reset(self, image):
+        self.overlay = image
 #        painter	= QtGui.QPainter(self.p)
         self.repaint()
 #        painter.eraseRect(self.rect())
 #        painter.drawPixmap(self.rect(), self.overlay, self.rect())
 #        painter.end()
-
         
     def paintEvent(self, event):
         painter = QtGui.QPainter(self)
@@ -53,7 +59,7 @@ class myViewBox(QtWidgets.QWidget):
     def mouseMoveEvent(self, event):
         if event.buttons() and QtCore.Qt.LeftButton and self.drawing:
             painter = QtGui.QPainter(self.overlay)
-            painter.setPen(QtGui.QPen(QtCore.Qt.red, 2, QtCore.Qt.SolidLine))
+            painter.setPen(self.pen)
             painter.drawLine(self.lastPoint, event.pos())
             self.lastPoint = event.pos()
             self.update()
@@ -63,37 +69,40 @@ class myViewBox(QtWidgets.QWidget):
             self.drawing = False
         
 class Form(QtWidgets.QMainWindow):
+    requestDigestVideosSignal = pyqtSignal(str,list,str,str)
     def __init__(self,w,h):
         QtWidgets.QMainWindow.__init__(self)
-#        self.worker = Worker()  # no parent!
-#        self.thread = QThread()  # no parent!
+        self.worker = Worker()  # no parent!
+        self.thread = QThread()  # no parent!
         # Connections for asking worker thread to do something
-#        self.requestLoadSignal2.connect(self.worker.loadFile2)
+        self.requestDigestVideosSignal.connect(self.worker.digestVideos)
 #        # Connections for UI thread to do something after worker thread
 #        self.worker.saveFinishedSignal.connect(self.finishSave)
 ##         3 - Move the Worker object to the Thread object
-#        self.worker.moveToThread(self.thread)
+        self.worker.moveToThread(self.thread)
 #         4 - Connect Worker Signals to the Thread slots
 #        self.finished.connect(self.thread.quit)
 #         5 - Connect Thread started signal to Worker operational slot method
 #        self.saveDone.connect(lambda: self.saveLight.setPixmap(blackLED))
 #         6 - Start the thread
-#        self.thread.start()
-        self.setupUi(w,h)
+        self.thread.start()
+        self.w = w
+        self.h = h
+        self.setupUi()
         
-    def setupUi(self,w,h):
+    def setupUi(self):
 #        myFloatVal = QtGui.QRegExpValidator(QtCore.QRegExp('[\d]+[.]?[\d]*'))
         
         self.setObjectName('MainWindow')
 #        self.setWindowModality(QtCore.Qt.WindowModal)
-        self.resize(w, h)
+        self.resize(self.w, self.h)
         self.showMaximized()
-        self.setMaximumSize(QtCore.QSize(w, h))
+        self.setMaximumSize(QtCore.QSize(self.w, self.h))
         font = QtGui.QFont()
         font.setFamily('Segoe UI')
         font.setPointSize(10)
         self.setFont(font)
-        self.setAutoFillBackground(True)
+#        self.setAutoFillBackground(True)
         self.setIconSize(QtCore.QSize(10, 10))
         self.setWindowTitle('Ultrasound Image Processor')
 #        self.setWindowIcon(icon)
@@ -112,7 +121,7 @@ class Form(QtWidgets.QMainWindow):
         self.drawing = False
         self.lastPoint = QtCore.QPoint()
         self.groupBox = QtWidgets.QGroupBox(self.centralwidget)
-        self.groupBox.setGeometry(QtCore.QRect(10, 10, int(0.15*w), int(0.9*h)))
+        self.groupBox.setGeometry(QtCore.QRect(int(0.005*self.w), int(0.01*self.h), int(0.15*self.w), int(0.9*self.h)))
         self.groupBox.setObjectName('groupBox')
         try:
             currentFile = os.path.realpath(__file__).replace('\\','/')
@@ -122,69 +131,81 @@ class Form(QtWidgets.QMainWindow):
         self.scriptdir = currentFile[:currentFile.rfind('/')+1]
 #        filedir = scriptdir[:scriptdir.rfind('/',1,len(scriptdir)-2)+1]
         self.dirButton = QtWidgets.QPushButton(self.groupBox)
-        self.dirButton.setGeometry(QtCore.QRect(10,10,30,25))
+        self.dirButton.setGeometry(QtCore.QRect(int(0.005*self.w),int(0.01*self.h),int(0.015*self.w),int(0.025*self.h)))
         self.dirButton.setText('Dir')
         self.dirButton.setObjectName('dirButton')
         self.dirField = QtWidgets.QLineEdit(self.groupBox)
-        self.dirField.setGeometry(QtCore.QRect(50, 10, int(0.15*w-60), 25))
+        self.dirField.setGeometry(QtCore.QRect(int(0.025*self.w), int(0.01*self.h), int(0.15*self.w-60), 25))
         self.dirField.setObjectName('dirField')
         self.dirField.setReadOnly(True)
         self.dirField.setText(self.scriptdir)
         self.leftButton = QtWidgets.QPushButton(self.groupBox)
-        self.leftButton.setGeometry(QtCore.QRect(int(0.01*w),50,int(0.02*w),int(0.04*h)))
+        self.leftButton.setGeometry(QtCore.QRect(int(0.01*self.w),int(0.05*self.h),int(0.02*self.w),int(0.04*self.h)))
         self.leftButton.setText('<')
         self.leftButton.setObjectName('leftButton')
         self.rightButton = QtWidgets.QPushButton(self.groupBox)
-        self.rightButton.setGeometry(QtCore.QRect(int(0.04*w),50,int(0.02*w),int(0.04*h)))
+        self.rightButton.setGeometry(QtCore.QRect(int(0.04*self.w),int(0.05*self.h),int(0.02*self.w),int(0.04*self.h)))
         self.rightButton.setText('>')
         self.rightButton.setObjectName('rightButton')
         self.saveButton = QtWidgets.QPushButton(self.groupBox)
-        self.saveButton.setGeometry(QtCore.QRect(int(0.07*w),50,int(0.03*w),int(0.04*h)))
+        self.saveButton.setGeometry(QtCore.QRect(int(0.07*self.w),int(0.05*self.h),int(0.03*self.w),int(0.04*self.h)))
         self.saveButton.setText('Save')
         self.saveButton.setObjectName('saveButton')
         self.clearButton = QtWidgets.QPushButton(self.groupBox)
-        self.clearButton.setGeometry(QtCore.QRect(int(0.11*w),50,int(0.03*w),int(0.04*h)))
+        self.clearButton.setGeometry(QtCore.QRect(int(0.11*self.w),int(0.05*self.h),int(0.03*self.w),int(0.04*self.h)))
         self.clearButton.setText('Clear')
         self.clearButton.setObjectName('clearButton')
         self.processButton = QtWidgets.QPushButton(self.groupBox)
-        self.processButton.setGeometry(QtCore.QRect(int(0.035*w),100,int(0.08*w),int(0.04*h)))
+        self.processButton.setGeometry(QtCore.QRect(int(0.035*self.w),int(0.1*self.h),int(0.08*self.w),int(0.04*self.h)))
         self.processButton.setText('Process Stored Images')
         self.processButton.setObjectName('processButton')
+        self.digestVideosButton = QtWidgets.QPushButton(self.groupBox)
+        self.digestVideosButton.setGeometry(QtCore.QRect(int(0.05*self.w),int(0.15*self.h),int(0.05*self.w),int(0.04*self.h)))
+        self.digestVideosButton.setText('Digest Videos')
+        self.digestVideosButton.setObjectName('digestVideosButton')
         self.imgFormatLabel = QtWidgets.QLineEdit(self.groupBox)
-        self.imgFormatLabel.setGeometry(QtCore.QRect(int(0.025*w),200,int(0.05*w),int(0.04*h)))
+        self.imgFormatLabel.setGeometry(QtCore.QRect(int(0.025*self.w),int(0.2*self.h),int(0.05*self.w),int(0.04*self.h)))
         self.imgFormatLabel.setText('Image Format')
         self.imgFormatLabel.setObjectName('imgFormatLabel')
         self.imgFormatLabel.setReadOnly(True)
         self.vidFormatLabel = QtWidgets.QLineEdit(self.groupBox)
-        self.vidFormatLabel.setGeometry(QtCore.QRect(int(0.085*w),200,int(0.05*w),int(0.04*h)))
+        self.vidFormatLabel.setGeometry(QtCore.QRect(int(0.085*self.w),int(0.2*self.h),int(0.05*self.w),int(0.04*self.h)))
         self.vidFormatLabel.setText('Video Format')
         self.vidFormatLabel.setObjectName('vidFormatLabel')
         self.vidFormatLabel.setReadOnly(True)
         self.imgFormatDropDown = QtWidgets.QComboBox(self.groupBox)
-        self.imgFormatDropDown.setGeometry(QtCore.QRect(int(0.025*w),250,int(0.05*w),int(0.04*h)))
-        self.imgFormatDropDown.addItems(['.jpg','.tif','.png'])
+        self.imgFormatDropDown.setGeometry(QtCore.QRect(int(0.025*self.w),int(0.25*self.h),int(0.05*self.w),int(0.04*self.h)))
+        self.imgFormatDropDown.addItems(['.tif','.jpg','.png'])
         self.imgFormatDropDown.setObjectName('imgFormatDropDown')
         self.vidFormatDropDown = QtWidgets.QComboBox(self.groupBox)
-        self.vidFormatDropDown.setGeometry(QtCore.QRect(int(0.085*w),250,int(0.05*w),int(0.04*h)))
-        self.vidFormatDropDown.addItems(['.avi','.mov','.mp4'])
+        self.vidFormatDropDown.setGeometry(QtCore.QRect(int(0.085*self.w),int(0.25*self.h),int(0.05*self.w),int(0.04*self.h)))
+        self.vidFormatDropDown.addItems(['.m4v','.avi','.mov','.mp4'])
         self.vidFormatDropDown.setObjectName('vidFormatDropDown')
-        self.digestVideosButton = QtWidgets.QPushButton(self.groupBox)
-        self.digestVideosButton.setGeometry(QtCore.QRect(int(0.05*w),150,int(0.05*w),int(0.04*h)))
-        self.digestVideosButton.setText('Digest Videos')
-        self.digestVideosButton.setObjectName('digestVideosButton')
+        self.redButton = QtWidgets.QPushButton(self.groupBox)
+        self.redButton.setGeometry(QtCore.QRect(int(0.04*self.w),int(0.3*self.h),int(0.03*self.w),int(0.04*self.h)))
+        self.redButton.setText('Red')
+        self.redButton.setObjectName('redButton')
+        self.blueButton = QtWidgets.QPushButton(self.groupBox)
+        self.blueButton.setGeometry(QtCore.QRect(int(0.075*self.w),int(0.3*self.h),int(0.03*self.w),int(0.04*self.h)))
+        self.blueButton.setText('Blue')
+        self.blueButton.setObjectName('blueButton')
+        self.greenButton = QtWidgets.QPushButton(self.groupBox)
+        self.greenButton.setGeometry(QtCore.QRect(int(0.11*self.w),int(0.3*self.h),int(0.03*self.w),int(0.04*self.h)))
+        self.greenButton.setText('Green')
+        self.greenButton.setObjectName('greenButton')
         
         saveAction = QtWidgets.QAction('Save', self)
         saveAction.setShortcut('Ctrl+S')
         saveAction.triggered.connect(self.saveImage)
         self.addAction(saveAction)
         
-        prevImage = QtWidgets.QAction('Stop', self)
-        prevImage.setShortcut(QtCore.Qt.Key_Left)
+        prevImage = QtWidgets.QAction('PrevTab', self)
+        prevImage.setShortcut('F')
         prevImage.triggered.connect(self.prevImage)
         self.addAction(prevImage)
         
         nextImage = QtWidgets.QAction('NextTab', self)
-        nextImage.setShortcut(QtCore.Qt.Key_Right)
+        nextImage.setShortcut('G')
         nextImage.triggered.connect(self.nextImage)
         self.addAction(nextImage)
         
@@ -200,37 +221,52 @@ class Form(QtWidgets.QMainWindow):
         self.saveButton.pressed.connect(self.saveImage)
         self.processButton.pressed.connect(self.processImages)
         self.digestVideosButton.pressed.connect(self.digestVideos)
+        self.imgFormatDropDown.currentIndexChanged.connect(self.loadImageList)
+        self.vidFormatDropDown.currentIndexChanged.connect(self.loadVideoList)
+        self.redButton.clicked.connect(self.redButtonPressed)
+        self.greenButton.clicked.connect(self.greenButtonPressed)
+        self.blueButton.clicked.connect(self.blueButtonPressed)
+        
         self.loadImageList()
-        self.changeImage()
+        self.loadVideoList()
         self.show()
-    
+        
+        
     def loadImageList(self):
         filesAndFolders = os.listdir(self.dirField.text())
-        self.imgFiles = [fileOrFolder for fileOrFolder in filesAndFolders if self.imgFormatDropDown.currentText() in fileOrFolder]
+        self.imgFiles = [fileOrFolder for fileOrFolder in filesAndFolders if self.imgFormatDropDown.currentText() in fileOrFolder and '-mask' not in fileOrFolder]
         self.imgIndex = 0
+        self.prevIndex = 0
+        if len(self.imgFiles) > 0:
+            self.image = QtGui.QImage(self.dirField.text() + self.imgFiles[self.imgIndex])
+            wImage,hImage = self.image.width(), self.image.height()
+            self.overlay = QtGui.QImage(wImage,hImage,QtGui.QImage.Format_RGBA8888)
+            self.overlay.fill(QtGui.QColor("transparent"))
+            self.changeImage()
         
     def loadVideoList(self):
         filesAndFolders = os.listdir(self.dirField.text())
-        self.imgFiles = [fileOrFolder for fileOrFolder in filesAndFolders if self.vidFormatDropDown.currentText() in fileOrFolder]
-        self.imgIndex = 0
+        self.vidFiles = [fileOrFolder for fileOrFolder in filesAndFolders if self.vidFormatDropDown.currentText() in fileOrFolder]
         
     def changeImage(self):
         if len(self.imgFiles) > 0:
-            self.image = QtGui.QImage(self.imgFiles[self.imgIndex])
-            w,h = self.image.width(), self.image.height()
+            self.image = QtGui.QImage(self.dirField.text() + self.imgFiles[self.imgIndex])
+            wImage,hImage = self.image.width(), self.image.height()
             if len(self.centralwidget.children()) > 1:
-                self.vL.reset(w,h)
-                self.vL.setGeometry(QtCore.QRect(500, 50, w,h))
-                self.backgroundBox.setPixmap(QtGui.QPixmap(self.image))
-            else:
-                self.backgroundBox = QtWidgets.QLabel(self.centralwidget)
-                self.backgroundBox.setGeometry(QtCore.QRect(500, 50, w,h))
-                self.backgroundBox.setPixmap(QtGui.QPixmap(self.image))
-                self.backgroundBox.setObjectName('backgroundBox')
-                self.vL = myViewBox(self.centralwidget,w,h)
-                self.vL.setGeometry(QtCore.QRect(500, 50, w,h))
-                self.vL.setObjectName('vL')
-    
+                self.backgroundBox.deleteLater()
+                self.vL.deleteLater()
+            self.backgroundBox = QtWidgets.QLabel(self.centralwidget)
+            self.backgroundBox.setGeometry(QtCore.QRect(int(0.5*self.w-0.5*wImage), int(0.5*self.h-0.5*hImage), wImage,hImage))
+            self.backgroundBox.setPixmap(QtGui.QPixmap(self.image))
+            self.backgroundBox.setObjectName('backgroundBox')
+            self.backgroundBox.show()
+            self.vL = myViewBox(self.centralwidget,wImage,hImage)
+            self.vL.setGeometry(QtCore.QRect(int(0.5*self.w-0.5*wImage), int(0.5*self.h-0.5*hImage), wImage,hImage))
+            self.vL.setObjectName('vL')
+            self.vL.pen = QtGui.QPen(QtCore.Qt.red, 2, QtCore.Qt.SolidLine)
+            self.vL.reset(self.overlay)
+            self.vL.show()
+            
     def openFileNameDialog(self):
         filedirtemp = QtWidgets.QFileDialog.getExistingDirectory(self,'Select Directory',self.dirField.text())
         if filedirtemp != '':
@@ -242,53 +278,93 @@ class Form(QtWidgets.QMainWindow):
             self.dirField.setText(filedir)
             self.loadImageList()
             self.loadVideoList()
+            self.changeImage()
     
     def clearDrawing(self):
-        w,h = self.image.width(), self.image.height()
-        self.vL.reset(w,h)
+        if len(self.imgFiles) > 0:
+            wImage,hImage = self.image.width(), self.image.height()
+            self.overlay = QtGui.QImage(wImage,hImage,QtGui.QImage.Format_RGBA8888)
+            self.overlay.fill(QtGui.QColor("transparent"))
+            self.vL.reset(self.overlay)
+            self.vL.setGeometry(QtCore.QRect(int(0.5*self.w-0.5*wImage), int(0.5*self.h-0.5*hImage), wImage,hImage))
         
         
     def prevImage(self):
         if self.imgIndex > 0:
+            self.prevIndex = self.imgIndex
             self.imgIndex -= 1
         else:
+            self.prevIndex = 0
             self.imgIndex = len(self.imgFiles) - 1
         self.changeImage()
     
     def nextImage(self):
         if len(self.imgFiles) > self.imgIndex + 1:
+            self.prevIndex = self.imgIndex
             self.imgIndex += 1
         else:
+            self.prevIndex = len(self.imgFiles) - 1
             self.imgIndex = 0
         self.changeImage()
     
     def saveImage(self):
-        self.backgroundBox.clear()
-        self.backgroundBox.repaint()
-        screenshot = screen.grabWindow(self.backgroundBox.winId())
-        f = self.imgFormatDropDown.currentText()
-        screenshot.save(self.imgFiles[self.imgIndex].replace(f,'-mask' + f), f.replace('.',''))
-        self.nextImage()
+        if len(self.imgFiles) > 0:
+            p = self.vL.grab()
+            q = QtGui.QImage(p)
+            sz = q.size()
+            buffer = q.bits()
+            buffer.setsize(sz.width()*sz.height()*q.depth())
+            arr = np.ndarray(shape  = (sz.height(), sz.width(), q.depth()//8),
+                     buffer = buffer, 
+                     dtype  = np.uint8)
+            mask3d = arr[:,:,0:3] > 200
+            arr[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
+            arr3 = arr.copy()
+            arr3[:,:,0] = arr[:,:,2]
+            arr3[:,:,2] = arr[:,:,0]
+            h,w = np.shape(arr)[0],np.shape(arr)[1]
+            self.overlay = QtGui.QImage(arr3,w,h,4*w,QtGui.QImage.Format_RGBA8888)
+            f = self.imgFormatDropDown.currentText()
+            self.overlay.save(self.dirField.text()+self.imgFiles[self.imgIndex].replace(f,'-mask' + f), f.replace('.',''))
+            self.nextImage()
     
     def processImages(self):
         if len(self.imgFiles) > 0:
-            answerz = ['Error applying mask']*len(self.imgFiles)
+            redAnswerz = ['Error applying mask']*len(self.imgFiles)
+            greenAnswerz = ['Error applying mask']*len(self.imgFiles)
+            blueAnswerz = ['Error applying mask']*len(self.imgFiles)
             imgFormat = self.imgFormatDropDown.currentText()
             for z,file in enumerate(self.imgFiles):
-                if os.path.isfile(file.replace(imgFormat,'-mask' + imgFormat)):
-                    mask = cv2.imread(file.replace(imgFormat,'-mask'+ imgFormat))[:,:,2] < 10
-                    region,n = nd.label(mask)
-                    c = np.zeros(n,np.uint32)
-                    for i in range(n):
-                        c[i] = np.count_nonzero(region==i+1)
-                    if n == 2:
-                        img = cv2.imread(file)[:,:,0]
-                        maskedimg = np.ma.array(img,mask=region==(np.argmin(c)+1))
-                        answerz[z] = maskedimg.mean()
+                if os.path.isfile(self.dirField.text()+file.replace(imgFormat,'-mask' + imgFormat)):
+                    mask = cv2.imread(self.dirField.text()+file.replace(imgFormat,'-mask'+ imgFormat))
+                    colorMask = mask < 10
+                    redRegion,nRed = nd.label(colorMask[:,:,2])
+                    greenRegion,nGreen = nd.label(colorMask[:,:,1])
+                    blueRegion,nBlue = nd.label(colorMask[:,:,0])
+                    img = cv2.imread(self.dirField.text()+file)[:,:,0]
+                    if nRed > 1:
+                        c = np.zeros(nRed,np.uint32)
+                        for i in range(nRed):
+                            c[i] = np.count_nonzero(redRegion==i+1)
+                        redMaskedImg = np.ma.array(img,mask=redRegion!=(np.argmin(c)+1))
+                        redAnswerz[z] = redMaskedImg.mean()
+                    if nGreen > 1:
+                        d = np.zeros(nGreen,np.uint32)
+                        for i in range(nGreen):
+                            d[i] = np.count_nonzero(greenRegion==i+1)
+                        greenMaskedImg = np.ma.array(img,mask=greenRegion!=(np.argmin(d)+1))
+                        greenAnswerz[z] = greenMaskedImg.mean()
+                    if nBlue  > 1:
+                        e = np.zeros(nBlue,np.uint32)
+                        for i in range(nBlue):
+                            e[i] = np.count_nonzero(blueRegion==i+1)
+                        blueMaskedImg = np.ma.array(img,mask=blueRegion!=(np.argmin(e)+1))
+                        blueAnswerz[z] = blueMaskedImg.mean()
                 else:
-                    answerz[z] = 'Mask file not found.'
-            currentFile = os.path.realpath(__file__).replace('\\','/')
-            excelFileName = currentFile.replace(os.path.basename(currentFile),'') + 'Image Processing Output - 1.xlsx'
+                    redAnswerz[z] = 'Mask file not found.'
+                    greenAnswerz[z] = 'Mask file not found.'
+                    blueAnswerz[z] = 'Mask file not found.'
+            excelFileName = self.dirField.text() + 'Image Processing Output - 1.xlsx'
             a = 1
             while os.path.isfile(excelFileName):
                 a += 1
@@ -296,40 +372,49 @@ class Form(QtWidgets.QMainWindow):
             writer = pd.ExcelWriter(excelFileName)
             df = pd.DataFrame(self.imgFiles)
             df.to_excel(writer, startrow=0, startcol = 0, sheet_name='Image Processing', header = ['Filename'], index=False, engine='xlsxwriter')
-            df2 = pd.DataFrame(answerz)
-            df2.to_excel(writer, startrow=0, startcol = 1, sheet_name='Image Processing', header = ['Average Brightness Value inside mask'], index=False, engine='xlsxwriter')
+            df2 = pd.DataFrame(redAnswerz)
+            df2.to_excel(writer, startrow=0, startcol = 1, sheet_name='Image Processing', header = ['Average Brightness 1 [Red]'], index=False, engine='xlsxwriter')
+            df2 = pd.DataFrame(greenAnswerz)
+            df2.to_excel(writer, startrow=0, startcol = 2, sheet_name='Image Processing', header = ['Average Brightness 2 [Green]'], index=False, engine='xlsxwriter')
+            df2 = pd.DataFrame(blueAnswerz)
+            df2.to_excel(writer, startrow=0, startcol = 3, sheet_name='Image Processing', header = ['Average Brightness 3 [Blue]'], index=False, engine='xlsxwriter')
             writer.sheets['Image Processing'].set_column('A:A',50,None)
             writer.sheets['Image Processing'].set_column('B:B',40,None)
+            writer.sheets['Image Processing'].set_column('C:C',40,None)
+            writer.sheets['Image Processing'].set_column('D:D',40,None)
             writer.save()
         
     def digestVideos(self):
         nFiles = len(self.vidFiles)
         if nFiles > 0:
-            vidFormat = self.vidFormatDropDown.currentText()
-            imgFormat = self.imgFormatDropDown.currentText()
-            totalFrames = 0
-            for fileNum,file in self.vidFiles:
-                print('Processing file ' + str(fileNum+1) + ' of ' + str(nFiles) + ': ' + file)
-                cap = cv2.VideoCapture(self.scriptdir+file)
-                vidDir = self.scriptdir+file.replace(vidFormat,'/')
-                if not os.path.isdir(vidDir):
-                    os.mkdir(vidDir)
-                h, w, nFrames = int(cap.get(4)), int(cap.get(3)), int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                totalFrames += nFrames
-                cap.set(cv2.CAP_PROP_CONVERT_RGB,False)
-                ret = True
-                i = 0
-                frames = np.zeros((450,580,nFrames),dtype='uint8')
-                while i < nFrames:
-                    ret,frame = cap.read()
-                    if ret:
-                        frames[:,:,i] = frame[92:542,143:723,0]
-                        cv2.imwrite(vidDir+str(i).zfill(4)+imgFormat,frames[:,:,i])
-                        i += 1
+            self.requestDigestVideosSignal.emit(self.dirField.text(),self.vidFiles,self.vidFormatDropDown.currentText(),self.imgFormatDropDown.currentText())
+            
+    def redButtonPressed(self):
+        try:
+            self.vL
+            self.vL.pen = QtGui.QPen(QtCore.Qt.red, 2, QtCore.Qt.SolidLine)
+        except:
+            None
+        
+        
+    def greenButtonPressed(self):
+        try:
+            self.vL
+            self.vL.pen = QtGui.QPen(QtCore.Qt.green, 2, QtCore.Qt.SolidLine)
+        except:
+            None
+        
+    def blueButtonPressed(self):
+        try:
+            self.vL
+            self.vL.pen = QtGui.QPen(QtCore.Qt.blue, 2, QtCore.Qt.SolidLine)
+        except:
+            None
+            
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     screen_resolution = app.desktop().screenGeometry()
     form = Form(screen_resolution.width(),screen_resolution.height())
-    screen = QtWidgets.QApplication.primaryScreen()
+    screen = app.primaryScreen()
     sys.exit(app.exec_())
