@@ -337,6 +337,16 @@ class Form(QtWidgets.QMainWindow):
             for z,file in enumerate(self.imgFiles):
                 if os.path.isfile(self.dirField.text()+file.replace(imgFormat,'-mask' + imgFormat)):
                     mask = cv2.imread(self.dirField.text()+file.replace(imgFormat,'-mask'+ imgFormat))
+                    maskFound = True
+                    break
+                else:
+                    maskFound = False
+            if not maskFound:
+                redAnswerz = ['Mask file not found.']*len(self.imgFiles)
+                greenAnswerz = ['Mask file not found.']*len(self.imgFiles)
+                blueAnswerz = ['Mask file not found.']*len(self.imgFiles)
+            else:
+                for z,file in enumerate(self.imgFiles):
                     colorMask = mask < 10
                     redRegion,nRed = nd.label(colorMask[:,:,2])
                     greenRegion,nGreen = nd.label(colorMask[:,:,1])
@@ -360,10 +370,7 @@ class Form(QtWidgets.QMainWindow):
                             e[i] = np.count_nonzero(blueRegion==i+1)
                         blueMaskedImg = np.ma.array(img,mask=blueRegion!=(np.argmin(e)+1))
                         blueAnswerz[z] = blueMaskedImg.mean()
-                else:
-                    redAnswerz[z] = 'Mask file not found.'
-                    greenAnswerz[z] = 'Mask file not found.'
-                    blueAnswerz[z] = 'Mask file not found.'
+                
             excelFileName = self.dirField.text() + 'Image Processing Output - 1.xlsx'
             a = 1
             while os.path.isfile(excelFileName):
