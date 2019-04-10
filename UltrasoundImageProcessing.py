@@ -64,6 +64,9 @@ class myViewBox(QtWidgets.QWidget):
     def mouseReleaseEvent(self, event):
         if event.button == QtCore.Qt.LeftButton:
             self.drawing = False
+            
+    def myGrab(self):
+        return self.grab()
         
 class Form(QtWidgets.QMainWindow):
     requestDigestVideosSignal = pyqtSignal(str,list,str,str)
@@ -290,32 +293,26 @@ class Form(QtWidgets.QMainWindow):
     
     def saveImage(self):
         if len(self.imgFiles) > 0:
-            p = self.vL.grab()
+            p = self.vL.myGrab()
             q = QtGui.QImage(p)
             sz = q.size()
             buffer = q.bits()
             w,h = sz.width(),sz.height()
+            wImage, hImage = self.image.width(),self.image.height(),
             buffer.setsize(w*h*q.depth())
             arr = np.ndarray(shape  = (sz.height(), sz.width(), q.depth()//8),
                      buffer = buffer,
                      dtype  = np.uint8)
-            print('wScreenShot = ' + str(w))
-            print('hScreenshot = ' + str(h))
-            print('wImage = ' + str(self.image.width()))
-            print('hImage = ' + str(self.image.height()))
-#            if w != self.image.width() or h!= self.image.height():
-            arr4 = np.array(Image.Image.resize(Image.fromarray(arr),(self.image.width(),self.image.height())))
-            print('Shape of arr4, mask3d, and arr3: ')
-            print(np.shape(arr4))
-#                arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
-#            else:
-#                arr4 = arr.copy()
+            if w != wImage or h!= hImage:
+                arr4 = np.array(Image.Image.resize(Image.fromarray(arr),(wImage,hImage)))
+            else:
+                arr4 = arr.copy()
             mask3d = arr4[:,:,0:3] > 200
             arr4[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
             arr3 = arr4.copy()
             arr3[:,:,0] = arr4[:,:,2]
             arr3[:,:,2] = arr4[:,:,0]
-            self.overlay = QtGui.QImage(arr3,w,h,4*w,QtGui.QImage.Format_RGBA8888)
+            self.overlay = QtGui.QImage(arr3,wImage,hImage,4*wImage,QtGui.QImage.Format_RGBA8888)
             f = self.imgFormatDropDown.currentText()
             self.overlay.save(self.dirField.text()+self.imgFiles[self.imgIndex].replace(f,'-mask' + f), f.replace('.',''))
             self.nextImage()
