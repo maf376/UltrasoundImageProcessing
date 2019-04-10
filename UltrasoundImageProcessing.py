@@ -299,11 +299,17 @@ class Form(QtWidgets.QMainWindow):
             arr = np.ndarray(shape  = (sz.height(), sz.width(), q.depth()//8),
                      buffer = buffer,
                      dtype  = np.uint8)
-            if w != self.image.width() or h!= self.image.height():
-                arr4 = np.array(Image.Image.resize(Image.fromarray(arr),(self.image.width(),self.image.height())))
+            print('wScreenShot = ' + str(w))
+            print('hScreenshot = ' + str(h))
+            print('wImage = ' + str(self.image.width()))
+            print('hImage = ' + str(self.image.height()))
+#            if w != self.image.width() or h!= self.image.height():
+            arr4 = np.array(Image.Image.resize(Image.fromarray(arr),(self.image.width(),self.image.height())))
+            print('Shape of arr4, mask3d, and arr3: ')
+            print(np.shape(arr4))
 #                arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
-            else:
-                arr4 = arr.copy()
+#            else:
+#                arr4 = arr.copy()
             mask3d = arr4[:,:,0:3] > 200
             arr4[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
             arr3 = arr4.copy()
