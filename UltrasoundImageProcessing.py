@@ -312,14 +312,18 @@ class Form(QtWidgets.QMainWindow):
             w,h = sz.width(),sz.height()
             buffer.setsize(w*h*q.depth())
             arr = np.ndarray(shape  = (sz.height(), sz.width(), q.depth()//8),
-                     buffer = buffer, 
+                     buffer = buffer,
                      dtype  = np.uint8)
-            arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
-            mask3d = arr4[:,:,0:3] > 200
-            arr[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
-            arr3 = arr.copy()
-            arr3[:,:,0] = arr[:,:,2]
-            arr3[:,:,2] = arr[:,:,0]
+            if w != self.image.width() or h!= self.image.height():
+                arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
+                mask3d = arr4 > 200
+            else:
+                arr4 = arr.copy()
+            del arr
+            arr4[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
+            arr3 = arr4.copy()
+            arr3[:,:,0] = arr4[:,:,2]
+            arr3[:,:,2] = arr4[:,:,0]
             self.overlay = QtGui.QImage(arr3,w,h,4*w,QtGui.QImage.Format_RGBA8888)
             f = self.imgFormatDropDown.currentText()
             self.overlay.save(self.dirField.text()+self.imgFiles[self.imgIndex].replace(f,'-mask' + f), f.replace('.',''))
