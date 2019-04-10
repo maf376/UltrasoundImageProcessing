@@ -332,8 +332,8 @@ class Form(QtWidgets.QMainWindow):
             imgFormat = self.imgFormatDropDown.currentText()
             for z,file in enumerate(self.imgFiles):
                 if os.path.isfile(self.dirField.text()+file.replace(imgFormat,'-mask' + imgFormat)):
-                    mask = cv2.imread(self.dirField.text()+file.replace(imgFormat,'-mask'+ imgFormat))
-                    hMask, wMask = np.shape(mask)[0],np.shape(mask)[1]
+                    maskAllChannels = cv2.imread(self.dirField.text()+file.replace(imgFormat,'-mask'+ imgFormat))
+                    hMask, wMask = np.shape(maskAllChannels)[0],np.shape(maskAllChannels)[1]
                     maskFound = True
                     break
                 else:
@@ -347,7 +347,7 @@ class Form(QtWidgets.QMainWindow):
                     img = cv2.imread(self.dirField.text()+file)[:,:,0]
                     hImg,wImg = np.shape(img)
                     if hImg == hMask and wImg == wMask:
-                        colorMask = mask < 10
+                        colorMask = maskAllChannels < 10
                         redRegion,nRed = nd.label(colorMask[:,:,2])
                         greenRegion,nGreen = nd.label(colorMask[:,:,1])
                         blueRegion,nBlue = nd.label(colorMask[:,:,0])
@@ -355,6 +355,8 @@ class Form(QtWidgets.QMainWindow):
                             c = np.zeros(nRed,np.uint32)
                             for i in range(nRed):
                                 c[i] = np.count_nonzero(redRegion==i+1)
+                            print(np.shape(redRegion!=(np.argmin(c)+1)))
+                            print(np.shape(img))
                             redMaskedImg = np.ma.array(img,mask=redRegion!=(np.argmin(c)+1))
                             redAnswerz[z] = redMaskedImg.mean()
                         if nGreen > 1:
