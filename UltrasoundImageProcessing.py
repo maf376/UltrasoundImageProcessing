@@ -68,19 +68,10 @@ class Form(QtWidgets.QMainWindow):
     requestDigestVideosSignal = pyqtSignal(str,list,str,str)
     def __init__(self,w,h):
         QtWidgets.QMainWindow.__init__(self)
-        self.worker = Worker()  # no parent!
-        self.thread = QThread()  # no parent!
-        # Connections for asking worker thread to do something
+        self.worker = Worker()
+        self.thread = QThread()
         self.requestDigestVideosSignal.connect(self.worker.digestVideos)
-#        # Connections for UI thread to do something after worker thread
-#        self.worker.saveFinishedSignal.connect(self.finishSave)
-##         3 - Move the Worker object to the Thread object
         self.worker.moveToThread(self.thread)
-#         4 - Connect Worker Signals to the Thread slots
-#        self.finished.connect(self.thread.quit)
-#         5 - Connect Thread started signal to Worker operational slot method
-#        self.saveDone.connect(lambda: self.saveLight.setPixmap(blackLED))
-#         6 - Start the thread
         self.thread.start()
         self.w = w
         self.h = h
@@ -90,7 +81,6 @@ class Form(QtWidgets.QMainWindow):
 #        myFloatVal = QtGui.QRegExpValidator(QtCore.QRegExp('[\d]+[.]?[\d]*'))
         
         self.setObjectName('MainWindow')
-#        self.setWindowModality(QtCore.Qt.WindowModal)
         self.resize(self.w, self.h)
         self.showMaximized()
         self.setMaximumSize(QtCore.QSize(self.w, self.h))
@@ -98,13 +88,8 @@ class Form(QtWidgets.QMainWindow):
         font.setFamily('Segoe UI')
         font.setPointSize(10)
         self.setFont(font)
-#        self.setAutoFillBackground(True)
         self.setIconSize(QtCore.QSize(10, 10))
         self.setWindowTitle('Ultrasound Image Processor')
-#        self.setWindowIcon(icon)
-#        self.taskbarIcon = QtWinExtras.QWinTaskbarButton(self)
-#        self.taskbarIcon.setOverlayIcon(icon)
-#        self.setIcon(icon)
         
         self.centralwidget = QtWidgets.QWidget(self)
         self.centralwidget.setObjectName('centralwidget')
@@ -125,7 +110,6 @@ class Form(QtWidgets.QMainWindow):
             currentFile = input('Python needs your help determining the location of this script.\nPlease copy the full filepath of this Python script from above,\nthen paste it here using right-click. Then press Enter to begin.\n')
         currentFile = currentFile.replace('\\','/')
         self.scriptdir = currentFile[:currentFile.rfind('/')+1]
-#        filedir = scriptdir[:scriptdir.rfind('/',1,len(scriptdir)-2)+1]
         self.dirButton = QtWidgets.QPushButton(self.groupBox)
         self.dirButton.setGeometry(QtCore.QRect(int(0.005*self.w),int(0.01*self.h),int(0.015*self.w),int(0.025*self.h)))
         self.dirButton.setText('Dir')
@@ -316,10 +300,9 @@ class Form(QtWidgets.QMainWindow):
                      dtype  = np.uint8)
             if w != self.image.width() or h!= self.image.height():
                 arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
-                mask3d = arr4 > 200
             else:
                 arr4 = arr.copy()
-            del arr
+            mask3d = arr4[:,:,0:3] > 200
             arr4[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
             arr3 = arr4.copy()
             arr3[:,:,0] = arr4[:,:,2]
@@ -360,8 +343,6 @@ class Form(QtWidgets.QMainWindow):
                             c = np.zeros(nRed,np.uint32)
                             for i in range(nRed):
                                 c[i] = np.count_nonzero(redRegion==i+1)
-#                            print(np.shape(redRegion!=(np.argmin(c)+1)))
-#                            print(np.shape(img))
                             redMaskedImg = np.ma.array(img,mask=redRegion!=(np.argmin(c)+1))
                             redAnswerz[z] = redMaskedImg.mean()
                         if nGreen > 1:
