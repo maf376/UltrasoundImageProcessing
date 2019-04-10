@@ -309,16 +309,17 @@ class Form(QtWidgets.QMainWindow):
             q = QtGui.QImage(p)
             sz = q.size()
             buffer = q.bits()
-            buffer.setsize(sz.width()*sz.height()*q.depth())
+            w,h = sz.width(),sz.height()
+            buffer.setsize(w*h*q.depth())
             arr = np.ndarray(shape  = (sz.height(), sz.width(), q.depth()//8),
                      buffer = buffer, 
                      dtype  = np.uint8)
-            mask3d = arr[:,:,0:3] > 200
+            arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
+            mask3d = arr4[:,:,0:3] > 200
             arr[:,:,3] = (255*np.any(mask3d,axis=2)).astype(np.uint8)
             arr3 = arr.copy()
             arr3[:,:,0] = arr[:,:,2]
             arr3[:,:,2] = arr[:,:,0]
-            h,w = np.shape(arr)[0],np.shape(arr)[1]
             self.overlay = QtGui.QImage(arr3,w,h,4*w,QtGui.QImage.Format_RGBA8888)
             f = self.imgFormatDropDown.currentText()
             self.overlay.save(self.dirField.text()+self.imgFiles[self.imgIndex].replace(f,'-mask' + f), f.replace('.',''))
@@ -355,8 +356,8 @@ class Form(QtWidgets.QMainWindow):
                             c = np.zeros(nRed,np.uint32)
                             for i in range(nRed):
                                 c[i] = np.count_nonzero(redRegion==i+1)
-                            print(np.shape(redRegion!=(np.argmin(c)+1)))
-                            print(np.shape(img))
+#                            print(np.shape(redRegion!=(np.argmin(c)+1)))
+#                            print(np.shape(img))
                             redMaskedImg = np.ma.array(img,mask=redRegion!=(np.argmin(c)+1))
                             redAnswerz[z] = redMaskedImg.mean()
                         if nGreen > 1:
