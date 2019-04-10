@@ -7,6 +7,7 @@ import cv2
 from time import sleep
 from scipy import ndimage as nd
 import pandas as pd
+from PIL import Image
 
 class Worker(QtCore.QObject):
     def __init__(self):
@@ -299,7 +300,8 @@ class Form(QtWidgets.QMainWindow):
                      buffer = buffer,
                      dtype  = np.uint8)
             if w != self.image.width() or h!= self.image.height():
-                arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
+                arr4 = np.array(Image.Image.resize(Image.fromarray(arr),(self.image.width(),self.image.height())))
+#                arr4 = cv2.resize(arr,(self.image.width(),self.image.height()))
             else:
                 arr4 = arr.copy()
             mask3d = arr4[:,:,0:3] > 200
